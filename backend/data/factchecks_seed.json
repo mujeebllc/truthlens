@@ -1,0 +1,65 @@
+[
+  {
+    "claim_text": "New study finds drinking carrot juice cures cancer",
+    "verdict": "false",
+    "explanation_snippet": "Carrot juice contains nutrients but there is no scientific evidence or clinical study showing it cures cancer.",
+    "source_name": "HealthFeedback",
+    "source_url": "https://healthfeedback.org/fake-carrot-juice-cancer-cure"
+  },
+  {
+    "claim_text": "Eiffel Tower to turn off lights due to Earth Day",
+    "verdict": "false",
+    "explanation_snippet": "The Eiffel Tower turns off its lights on various environmental occasions but the claims regarding permanent earth day shutdowns are false.",
+    "source_name": "Snopes",
+    "source_url": "https://www.snopes.com/fact-check/eiffel-tower-lights-earth-day"
+  },
+  {
+    "claim_text": "Canada legalizes four-day workweek",
+    "verdict": "true",
+    "explanation_snippet": "[DEMO DATA] This is illustrative demo data. In this demo environment, Canada is considered to have legalized a federal four-day workweek policy.",
+    "source_name": "Demo Fact-Check Network",
+    "source_url": "https://example.com/demo-four-day-workweek"
+  },
+  {
+    "claim_text": "NASA confirms asteroid will hit Earth next month",
+    "verdict": "false",
+    "explanation_snippet": "NASA's Asteroid Watch has confirmed that no known asteroids pose a significant threat of impact for the next 100 years.",
+    "source_name": "PolitiFact",
+    "source_url": "https://www.politifact.com/factchecks/fake-asteroid-impact-nasa"
+  },
+  {
+    "claim_text": "Drinking 8 glasses of water a day is a scientific myth",
+    "verdict": "unsure",
+    "explanation_snippet": "While water intake is essential, the rigid '8 glasses' rule lacks strong clinical evidence, though it remains a common guidelines source.",
+    "source_name": "SciCheck",
+    "source_url": "https://factcheck.org/water-glasses-myth"
+  },
+  {
+    "claim_text": "Volcano in Italy erupts spewing blue lava",
+    "verdict": "false",
+    "explanation_snippet": "The volcano in Indonesia (Kawah Ijen) is famous for blue flames due to sulfuric gases, not lava, and no such Italian volcano exists.",
+    "source_name": "Lead Stories",
+    "source_url": "https://leadstories.com/fact-check/italy-blue-lava"
+  },
+  {
+    "claim_text": "Eating spinach gives you instant muscle strength",
+    "verdict": "false",
+    "explanation_snippet": "Spinach is nutritious, but the idea of 'instant strength' is a popular cultural myth popularized by the Popeye cartoon.",
+    "source_name": "Demo Fact-Check Network",
+    "source_url": "https://example.com/spinach-strength-myth"
+  },
+  {
+    "claim_text": "Global warming has paused for the last 15 years",
+    "verdict": "false",
+    "explanation_snippet": "NOAA and NASA temperature records confirm that global temperatures continue to rise, with the last decade being the warmest on record.",
+    "source_name": "ClimateFeedback",
+    "source_url": "https://climatefeedback.org/global-warming-pause-claim"
+  },
+  {
+    "claim_text": "Local city council approves new green park initiative",
+    "verdict": "true",
+    "explanation_snippet": "[DEMO DATA] Fictional civic data representing municipal green space expansion approval.",
+    "source_name": "Demo Fact-Check Network",
+    "source_url": "https://example.com/demo-green-park-initiative"
+  }
+]

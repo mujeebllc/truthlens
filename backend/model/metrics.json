@@ -1,0 +1,6 @@
+{
+  "accuracy": 0.0,
+  "f1": 0.0,
+  "error": "Failed to download dataset: Dataset scripts are no longer supported, but found liar.py",
+  "note": "Training skipped or failed. Fallbacks active."
+}

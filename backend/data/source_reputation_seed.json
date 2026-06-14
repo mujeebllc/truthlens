@@ -1,0 +1,17 @@
+[
+  {"domain": "reuters.com", "reliability_score": 95},
+  {"domain": "apnews.com", "reliability_score": 95},
+  {"domain": "bbc.com", "reliability_score": 90},
+  {"domain": "npr.org", "reliability_score": 90},
+  {"domain": "nytimes.com", "reliability_score": 85},
+  {"domain": "wsj.com", "reliability_score": 85},
+  {"domain": "cdc.gov", "reliability_score": 98},
+  {"domain": "who.int", "reliability_score": 98},
+  {"domain": "foxnews.com", "reliability_score": 50},
+  {"domain": "dailymail.co.uk", "reliability_score": 40},
+  {"domain": "rt.com", "reliability_score": 30},
+  {"domain": "breitbart.com", "reliability_score": 25},
+  {"domain": "infowars.com", "reliability_score": 10},
+  {"domain": "naturalnews.com", "reliability_score": 10},
+  {"domain": "globaltimes.cn", "reliability_score": 45}
+]
