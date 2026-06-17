@@ -17,16 +17,30 @@ import trust_score
 import explain
 import image_forensics
 
+from contextlib import asynccontextmanager
+
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Run SQLite setup and seeds on startup
-init_db()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Initializing database...")
+    init_db()
+    
+    logger.info("Preloading classification models...")
+    classifier.preload_models()
+    
+    logger.info("Preloading translation models (if enabled)...")
+    translate.preload_translation_models()
+    
+    yield
+    logger.info("Shutting down TruthLens API...")
 
 app = FastAPI(
     title="TruthLens API",
-    description="Backend API for TruthLens misinformation detection MVP"
+    description="Backend API for TruthLens misinformation detection MVP",
+    lifespan=lifespan
 )
 
 # Enable CORS for frontend integration
@@ -109,10 +123,10 @@ def analyze(payload: AnalyzeRequest):
     method = class_result["method"]
     
     # 5. Fact Check Database Lookup (queries Google API first, falls back to seeds)
-    factcheck_match = factcheck.lookup_factcheck(text)
+    factcheck_match, api_status = factcheck.lookup_factcheck_with_status(text)
     if not factcheck_match and trans_applied:
         # Retry with translated text
-        factcheck_match = factcheck.lookup_factcheck(working_text)
+        factcheck_match, api_status = factcheck.lookup_factcheck_with_status(working_text)
         
     # 6. Trust Score Aggregation
     ts_result = trust_score.compute_trust_score(
@@ -130,7 +144,10 @@ def analyze(payload: AnalyzeRequest):
         fake_probability=fake_prob,
         factcheck_match=factcheck_match,
         trust_score=score,
-        label=label
+        label=label,
+        domain=domain,
+        manipulation_score=None,
+        method=method
     )
     
     # 8. Record claim in SQLite database
@@ -156,6 +173,7 @@ def analyze(payload: AnalyzeRequest):
         "fake_probability": fake_prob,
         "explanation": explanation,
         "factcheck_match": factcheck_match,
+        "factcheck_api_status": api_status,
         "method": method,
         "language": detected_lang,
         "translation_applied": trans_applied,
@@ -216,7 +234,7 @@ async def analyze_image(
                 
                 # Approximate original fake probability from database score
                 approx_fake_prob = 1.0 - (orig_score / 100.0)
-                factcheck_match = factcheck.lookup_factcheck(orig_text)
+                factcheck_match, api_status = factcheck.lookup_factcheck_with_status(orig_text)
                 domain = extract_domain(orig_source) if orig_source != "Direct Entry" else None
                 
                 # Recalculate blending in image manipulation
@@ -245,8 +263,18 @@ async def analyze_image(
                     "trust_score": new_score,
                     "label": new_label,
                     "fake_probability": approx_fake_prob,
-                    "explanation": explain.generate_explanation(orig_text, approx_fake_prob, factcheck_match, new_score, new_label),
+                    "explanation": explain.generate_explanation(
+                        claim_text=orig_text,
+                        fake_probability=approx_fake_prob,
+                        factcheck_match=factcheck_match,
+                        trust_score=new_score,
+                        label=new_label,
+                        domain=domain,
+                        manipulation_score=manipulation_score,
+                        method="recalculated-image-blend"
+                    ),
                     "factcheck_match": factcheck_match,
+                    "factcheck_api_status": api_status,
                     "method": "recalculated-image-blend",
                     "language": "en",
                     "translation_applied": False,
@@ -262,7 +290,8 @@ async def analyze_image(
                     "label": new_label,
                     "manipulation_score": manipulation_score,
                     "forensics": forensics,
-                    "status": "re-blended"
+                    "status": "re-blended",
+                    "factcheck_api_status": api_status
                 }
             conn.close()
         except Exception as e:
@@ -279,7 +308,7 @@ async def analyze_image(
         fake_prob = class_result["fake_probability"]
         method = class_result["method"]
         
-        factcheck_match = factcheck.lookup_factcheck(claim_text)
+        factcheck_match, api_status = factcheck.lookup_factcheck_with_status(claim_text)
         
         ts_result = trust_score.compute_trust_score(
             fake_probability=fake_prob,
@@ -295,7 +324,10 @@ async def analyze_image(
             fake_probability=fake_prob,
             factcheck_match=factcheck_match,
             trust_score=score,
-            label=label
+            label=label,
+            domain=None,
+            manipulation_score=manipulation_score,
+            method=method
         )
         
         claim_id = None
@@ -319,6 +351,7 @@ async def analyze_image(
             "fake_probability": fake_prob,
             "explanation": explanation,
             "factcheck_match": factcheck_match,
+            "factcheck_api_status": api_status,
             "method": method,
             "language": detected_lang,
             "translation_applied": trans_applied,

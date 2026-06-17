@@ -10,6 +10,34 @@ _zero_shot_pipeline = None
 # Model directory path relative to this file
 MODEL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "model", "truthlens_distilbert")
 
+def preload_models():
+    """
+    Preloads DistilBERT and Zero-shot BART classifiers into memory at startup.
+    This eliminates latency on the first request.
+    """
+    global _classifier_pipeline, _zero_shot_pipeline
+    
+    # Preload DistilBERT if model directory exists
+    if os.path.exists(MODEL_DIR):
+        try:
+            from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
+            if _classifier_pipeline is None:
+                logger.info(f"Preloading Fine-tuned DistilBERT pipeline from: {MODEL_DIR}")
+                tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)
+                model = AutoModelForSequenceClassification.from_pretrained(MODEL_DIR)
+                _classifier_pipeline = pipeline("text-classification", model=model, tokenizer=tokenizer)
+        except Exception as e:
+            logger.error(f"Failed to preload DistilBERT pipeline: {e}")
+            
+    # Preload Zero-shot BART
+    try:
+        from transformers import pipeline
+        if _zero_shot_pipeline is None:
+            logger.info("Preloading Zero-Shot BART classifier (facebook/bart-large-mnli)...")
+            _zero_shot_pipeline = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
+    except Exception as e:
+        logger.error(f"Failed to preload Zero-shot BART pipeline: {e}")
+
 def heuristic_classify(text: str) -> float:
     """
     Tier 3: Pure heuristic rule-based classifier.

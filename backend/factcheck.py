@@ -32,13 +32,17 @@ def map_textual_rating(rating: str) -> str:
         return "true"
     return "unsure"
 
-def lookup_factcheck(claim_text: str) -> dict | None:
+def lookup_factcheck_with_status(claim_text: str) -> tuple[dict | None, str]:
     """
     Look up fact check records.
     First tries the live Google Fact Check Tools API if GOOGLE_FACTCHECK_API_KEY is available.
     If unavailable, fails, or misses, falls back to Jaccard token-matching on seeded database claims.
+    Returns a tuple of (factcheck_match_dict_or_none, api_status_string).
+    api_status_string is one of: "active", "no_key", "failed".
     """
     api_key = os.getenv("GOOGLE_FACTCHECK_API_KEY")
+    api_status = "no_key"
+    factcheck_match = None
     
     # 1. Google Fact Check Tools API path
     if api_key:
@@ -48,6 +52,7 @@ def lookup_factcheck(claim_text: str) -> dict | None:
             logger.info("Attempting Google Fact Check Tools API lookup...")
             response = requests.get(url, timeout=4)
             if response.status_code == 200:
+                api_status = "active"
                 data = response.json()
                 claims = data.get("claims", [])
                 if claims:
@@ -56,7 +61,7 @@ def lookup_factcheck(claim_text: str) -> dict | None:
                     if reviews:
                         top_review = reviews[0]
                         rating = top_review.get("textualRating", "")
-                        return {
+                        factcheck_match = {
                             "claim_text": top_claim.get("text", claim_text),
                             "verdict": map_textual_rating(rating),
                             "explanation_snippet": top_review.get("title", rating),
@@ -66,9 +71,14 @@ def lookup_factcheck(claim_text: str) -> dict | None:
                         }
             else:
                 logger.warning(f"Google Fact Check API responded with status {response.status_code}")
+                api_status = "failed"
         except Exception as e:
             logger.error(f"Google Fact Check API query failed: {e}")
+            api_status = "failed"
             
+    if factcheck_match:
+        return factcheck_match, api_status
+        
     # 2. Local seed fallback path
     try:
         seed_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "factchecks_seed.json")
@@ -87,7 +97,7 @@ def lookup_factcheck(claim_text: str) -> dict | None:
                     
             if best_score > 0.5 and best_match:
                 logger.info(f"Local seed match found (similarity {best_score:.2f})")
-                return {
+                factcheck_match = {
                     "claim_text": best_match["claim_text"],
                     "verdict": best_match["verdict"],
                     "explanation_snippet": best_match["explanation_snippet"],
@@ -98,4 +108,8 @@ def lookup_factcheck(claim_text: str) -> dict | None:
     except Exception as e:
         logger.error(f"Local seeded factcheck lookup failed: {e}")
         
-    return None
+    return factcheck_match, api_status
+
+def lookup_factcheck(claim_text: str) -> dict | None:
+    match, _ = lookup_factcheck_with_status(claim_text)
+    return match

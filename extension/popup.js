@@ -1,4 +1,10 @@
-const API_BASE_URL = 'http://localhost:8000';
+// popup.js - TruthLens Extension Logic
+
+// State variables
+let backendUrl = 'http://localhost:8000';
+let currentClaimId = null;
+let currentFeedbackVote = null;
+let selectedFile = null;
 
 // DOM Elements
 const analyzeForm = document.getElementById('analyze-form');
@@ -42,55 +48,75 @@ const feedbackStatus = document.getElementById('feedback-status');
 const historyList = document.getElementById('history-list');
 const btnRefreshHistory = document.getElementById('btn-refresh-history');
 
-// State Variables
-let currentClaimId = null;
-let currentFeedbackVote = null;
-let selectedFile = null;
+// Settings Elements
+const btnToggleSettings = document.getElementById('btn-toggle-settings');
+const settingsDrawer = document.getElementById('settings-drawer');
+const inputBackendUrl = document.getElementById('settings-backend-url');
+const btnSaveSettings = document.getElementById('btn-save-settings');
+const btnCloseSettings = document.getElementById('btn-close-settings');
 
-// Demo Claims Prefills
-const demos = {
-    carrot: "New study finds drinking carrot juice cures cancer",
-    eiffel: "Eiffel Tower to turn off lights due to Earth Day",
-    workweek: "Canada legalizes four-day workweek"
-};
+// 1. Settings Drawer Logic
+btnToggleSettings.addEventListener('click', () => {
+    const isVisible = settingsDrawer.style.display === 'block';
+    settingsDrawer.style.display = isVisible ? 'none' : 'block';
+});
 
-document.getElementById('demo-carrot').addEventListener('click', () => prefillDemo('carrot'));
-document.getElementById('demo-eiffel').addEventListener('click', () => prefillDemo('eiffel'));
-document.getElementById('demo-workweek').addEventListener('click', () => prefillDemo('workweek'));
+btnCloseSettings.addEventListener('click', () => {
+    settingsDrawer.style.display = 'none';
+});
 
-function prefillDemo(key) {
-    claimTextInput.value = demos[key];
-    claimUrlInput.value = "";
-    removeSelectedFile();
-    // Scroll to form smoothly
-    analyzeForm.scrollIntoView({ behavior: 'smooth' });
-}
+btnSaveSettings.addEventListener('click', () => {
+    let url = inputBackendUrl.value.trim();
+    if (!url) return;
+    
+    // Remove trailing slash if present
+    if (url.endsWith('/')) {
+        url = url.slice(0, -1);
+    }
+    
+    chrome.storage.local.set({ backendUrl: url }, () => {
+        backendUrl = url;
+        inputBackendUrl.value = url;
+        settingsDrawer.style.display = 'none';
+        
+        // Show indicator visual confirmation
+        const dot = document.querySelector('.status-dot');
+        dot.style.backgroundColor = '#10b981';
+        dot.style.boxShadow = '0 0 8px #10b981';
+        
+        // Refresh history from new endpoint
+        loadHistory();
+    });
+});
 
-// Drag & Drop / File selection logic
+// 2. Tab Navigation
+const tabLinks = document.querySelectorAll('.tab-link');
+const tabContents = document.querySelectorAll('.tab-content');
+
+tabLinks.forEach(link => {
+    link.addEventListener('click', () => {
+        const targetTab = link.getAttribute('data-tab');
+        
+        tabLinks.forEach(btn => btn.classList.remove('active'));
+        tabContents.forEach(content => content.style.display = 'none');
+        
+        link.classList.add('active');
+        document.getElementById(targetTab).style.display = 'flex';
+        
+        if (targetTab === 'tab-history') {
+            loadHistory();
+        }
+    });
+});
+
+// 3. File upload/dropzone logic
+dropzone.addEventListener('click', () => {
+    imageUploadInput.click();
+});
+
 imageUploadInput.addEventListener('change', handleFileSelect);
 
-dropzone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dropzone.style.borderColor = '#2563eb';
-    dropzone.style.backgroundColor = '#eff6ff';
-});
-
-dropzone.addEventListener('dragleave', () => {
-    dropzone.style.borderColor = '#e5e7eb';
-    dropzone.style.backgroundColor = '#f9fafb';
-});
-
-dropzone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropzone.style.borderColor = '#e5e7eb';
-    dropzone.style.backgroundColor = '#f9fafb';
-
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        imageUploadInput.files = e.dataTransfer.files;
-        handleFileSelect();
-    }
-});
-
+// Handle file selection updates
 function handleFileSelect() {
     if (imageUploadInput.files && imageUploadInput.files.length > 0) {
         selectedFile = imageUploadInput.files[0];
@@ -112,7 +138,7 @@ function removeSelectedFile() {
     document.querySelector('.dropzone-content').style.display = 'flex';
 }
 
-// Submit Form Action
+// 4. Submit claim for audit
 analyzeForm.addEventListener('submit', async (e) => {
     e.preventDefault();
 
@@ -125,6 +151,7 @@ analyzeForm.addEventListener('submit', async (e) => {
     btnSubmit.disabled = true;
     spinner.style.display = 'inline-block';
     document.querySelector('.btn-text').textContent = 'Auditing...';
+    resultCard.style.display = 'none';
 
     try {
         let result;
@@ -135,32 +162,30 @@ analyzeForm.addEventListener('submit', async (e) => {
             formData.append('file', selectedFile);
             formData.append('claim_text', text);
 
-            const response = await fetch(`${API_BASE_URL}/analyze-image`, {
+            const response = await fetch(`${backendUrl}/analyze-image`, {
                 method: 'POST',
                 body: formData
             });
 
-            if (!response.ok) throw new Error('Image analysis failed');
+            if (!response.ok) throw new Error('Image ELA forensics request failed');
             result = await response.json();
         } else {
             // Case B: Text-only analysis
-            const response = await fetch(`${API_BASE_URL}/analyze`, {
+            const response = await fetch(`${backendUrl}/analyze`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text, url: url || null })
             });
 
-            if (!response.ok) throw new Error('Veracity audit request failed');
+            if (!response.ok) throw new Error('Text veracity audit request failed');
             result = await response.json();
         }
 
         displayResults(result);
         removeSelectedFile();
-        loadHistory(); // Reload history sidebar
-
     } catch (err) {
         console.error(err);
-        alert(`Verification failed: ${err.message}. Ensure the backend is running on http://localhost:8000`);
+        alert(`Audit connection failed: ${err.message}. Confirm the TruthLens backend server is running at ${backendUrl}`);
     } finally {
         btnSubmit.disabled = false;
         spinner.style.display = 'none';
@@ -168,34 +193,33 @@ analyzeForm.addEventListener('submit', async (e) => {
     }
 });
 
-// Render results
+// Render results inside popup card
 function displayResults(data) {
     currentClaimId = data.id;
     resetFeedback();
 
     resultCard.style.display = 'block';
-    resultCard.scrollIntoView({ behavior: 'smooth' });
 
     // 1. Render Score Gauge
     const score = data.trust_score;
     scoreVal.textContent = score;
 
-    // Circle circumference is 314.159 (2 * PI * r, where r=50)
-    const offset = 314.159 - (score / 100) * 314.159;
+    // Circle circumference is 213.6 (2 * PI * r, where r=34)
+    const offset = 213.6 - (score / 100) * 213.6;
     scoreRingFg.style.strokeDashoffset = offset;
 
     // Style verdict badge & progress ring colors
     verdictBadge.textContent = data.label;
     verdictBadge.className = 'verdict-badge'; // reset
 
-    let colorVar = '#2563eb'; // Default primary blue
+    let colorVar = '#22d3ee'; // Default neon cyan
 
     if (score <= 30) {
         verdictBadge.classList.add('verdict-fake');
         colorVar = '#ef4444'; // Red
     } else if (score <= 60) {
         verdictBadge.classList.add('verdict-unverified');
-        colorVar = '#eab308'; // Yellow/Amber
+        colorVar = '#f59e0b'; // Amber/Yellow
     } else {
         verdictBadge.classList.add('verdict-reliable');
         colorVar = '#10b981'; // Green
@@ -203,7 +227,7 @@ function displayResults(data) {
     scoreRingFg.style.stroke = colorVar;
 
     // 2. Explanatory text
-    explanationText.textContent = data.explanation;
+    explanationText.innerHTML = data.explanation.replace(/\n\n/g, '<br/><br/>');
 
     // 3. System badges
     badgeMethod.textContent = formatMethodName(data.method);
@@ -228,13 +252,13 @@ function displayResults(data) {
         const manipulationPct = (data.manipulation_score * 100).toFixed(1);
         elaProgressBar.style.width = `${manipulationPct}%`;
         elaScoreText.textContent = `${manipulationPct}%`;
-        elaNote.textContent = data.forensics.note || 'Error Level Analysis active.';
+        elaNote.textContent = data.forensics.note || 'Error Level Analysis complete.';
 
         // Progress color
         if (data.manipulation_score > 0.6) {
-            elaProgressBar.style.backgroundColor = '#d946ef'; // Magenta warning
+            elaProgressBar.style.backgroundColor = '#d946ef'; // Magenta
         } else {
-            elaProgressBar.style.backgroundColor = '#a855f7'; // Purple normal
+            elaProgressBar.style.backgroundColor = '#c084fc'; // Purple
         }
     } else {
         imageElaResults.style.display = 'none';
@@ -242,10 +266,10 @@ function displayResults(data) {
 }
 
 function formatMethodName(m) {
-    if (m === 'finetuned-distilbert-liar') return 'Fine-Tuned DistilBERT';
-    if (m === 'zero-shot-bart') return 'Zero-Shot BART Model';
-    if (m === 'heuristic') return 'Heuristic Veracity Classifier';
-    return m || 'Unknown Model';
+    if (m === 'finetuned-distilbert-liar') return 'DistilBERT';
+    if (m === 'zero-shot-bart') return 'Zero-Shot BART';
+    if (m === 'heuristic') return 'Heuristics';
+    return m || 'Classifier';
 }
 
 function formatLanguageName(l) {
@@ -254,21 +278,20 @@ function formatLanguageName(l) {
 }
 
 function updateApiStatusBadge(status) {
-    if (!badgeApi) return;
     badgeApi.className = 'badge badge-api';
     if (status === 'active') {
-        badgeApi.textContent = 'Fact-Check: Google API';
+        badgeApi.textContent = 'Google API';
         badgeApi.classList.add('badge-api-active');
     } else if (status === 'failed') {
-        badgeApi.textContent = 'Fact-Check: API Error';
+        badgeApi.textContent = 'API Error';
         badgeApi.classList.add('badge-api-failed');
     } else {
-        badgeApi.textContent = 'Fact-Check: Local Seed DB';
+        badgeApi.textContent = 'Local Seeds';
         badgeApi.classList.add('badge-api-no-key');
     }
 }
 
-// Feedback Loop Actions
+// 5. Feedback Actions
 btnFeedbackAgree.addEventListener('click', () => setFeedbackVote('agree'));
 btnFeedbackDisagree.addEventListener('click', () => setFeedbackVote('disagree'));
 
@@ -276,8 +299,8 @@ function setFeedbackVote(vote) {
     currentFeedbackVote = vote;
     feedbackStatus.style.display = 'none';
 
-    btnFeedbackAgree.className = 'btn btn-feedback';
-    btnFeedbackDisagree.className = 'btn btn-feedback';
+    btnFeedbackAgree.className = 'btn btn-feedback btn-xs';
+    btnFeedbackDisagree.className = 'btn btn-feedback btn-xs';
 
     if (vote === 'agree') {
         btnFeedbackAgree.classList.add('active-agree');
@@ -290,11 +313,10 @@ function setFeedbackVote(vote) {
 
 btnSubmitFeedback.addEventListener('click', async () => {
     if (!currentClaimId || !currentFeedbackVote) return;
-
     btnSubmitFeedback.disabled = true;
 
     try {
-        const response = await fetch(`${API_BASE_URL}/feedback`, {
+        const response = await fetch(`${backendUrl}/feedback`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -304,7 +326,7 @@ btnSubmitFeedback.addEventListener('click', async () => {
             })
         });
 
-        if (!response.ok) throw new Error('Failed to record feedback');
+        if (!response.ok) throw new Error('Feedback log request failed');
 
         feedbackCommentContainer.style.display = 'none';
         feedbackStatus.style.display = 'block';
@@ -319,22 +341,32 @@ btnSubmitFeedback.addEventListener('click', async () => {
 function resetFeedback() {
     currentFeedbackVote = null;
     feedbackComment.value = '';
-    btnFeedbackAgree.className = 'btn btn-feedback';
-    btnFeedbackDisagree.className = 'btn btn-feedback';
+    btnFeedbackAgree.className = 'btn btn-feedback btn-xs';
+    btnFeedbackDisagree.className = 'btn btn-feedback btn-xs';
     feedbackCommentContainer.style.display = 'none';
     feedbackStatus.style.display = 'none';
 }
 
-// Load Recent Audits Registry
+// 6. Audit Registry History Load
 async function loadHistory() {
     try {
-        const response = await fetch(`${API_BASE_URL}/history`);
-        if (!response.ok) throw new Error('History fetch failed');
+        const response = await fetch(`${backendUrl}/history`);
+        if (!response.ok) throw new Error('Failed to load history');
         const data = await response.json();
-
         renderHistoryList(data);
+        
+        // Mark status dot green
+        const dot = document.querySelector('.status-dot');
+        dot.style.backgroundColor = '#10b981';
+        dot.style.boxShadow = '0 0 8px #10b981';
     } catch (err) {
-        console.error('Failed to load history:', err);
+        console.warn('Backend server unreachable:', err);
+        // Mark status dot red (offline)
+        const dot = document.querySelector('.status-dot');
+        dot.style.backgroundColor = '#ef4444';
+        dot.style.boxShadow = '0 0 8px #ef4444';
+        
+        historyList.innerHTML = '<li class="history-placeholder">Server offline. Check Settings and try again.</li>';
     }
 }
 
@@ -350,7 +382,6 @@ function renderHistoryList(items) {
         const li = document.createElement('li');
         li.className = 'history-item';
 
-        // Verdict styling class
         let classColor = 'history-score-reliable';
         if (item.score <= 30) {
             classColor = 'history-score-fake';
@@ -361,7 +392,7 @@ function renderHistoryList(items) {
         li.innerHTML = `
             <div class="history-item-claim" title="${escapeHtml(item.claim_text)}">${escapeHtml(item.claim_text)}</div>
             <div class="history-item-meta">
-                <span class="${classColor}">${item.score}%</span>
+                <span class="${classColor}">${item.score}% Veracity</span>
                 <span>${formatTime(item.created_at)}</span>
             </div>
         `;
@@ -370,7 +401,12 @@ function renderHistoryList(items) {
             claimTextInput.value = item.claim_text;
             claimUrlInput.value = item.source === 'Direct Entry' || item.source === 'Image Forensics Entry' ? '' : item.source;
             removeSelectedFile();
-            // Trigger analysis (re-submits text to ensure fresh scoring/caching check)
+            
+            // Switch tab back to console
+            const consoleTabLink = document.querySelector('[data-tab="tab-console"]');
+            consoleTabLink.click();
+            
+            // Trigger analyze form submission
             analyzeForm.dispatchEvent(new Event('submit'));
         });
 
@@ -389,8 +425,6 @@ function escapeHtml(str) {
 
 function formatTime(timestamp) {
     try {
-        // SQLite timestamps default to UTC: YYYY-MM-DD HH:MM:SS
-        // Replace space with T and append Z to format as ISO UTC
         const date = new Date(timestamp.replace(' ', 'T') + 'Z');
         if (isNaN(date.getTime())) return timestamp;
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' ' + date.toLocaleDateString([], { month: 'short', day: 'numeric' });
@@ -401,9 +435,27 @@ function formatTime(timestamp) {
 
 btnRefreshHistory.addEventListener('click', loadHistory);
 
-// Initial Load
+// 7. Initial Load and Chrome Selection pre-fill
 window.addEventListener('DOMContentLoaded', () => {
-    loadHistory();
-    // Poll history every 30 seconds
-    setInterval(loadHistory, 30000);
+    // Read backendUrl and pre-filled text from storage
+    chrome.storage.local.get({ 
+        backendUrl: 'http://localhost:8000',
+        lastSelectedText: '' 
+    }, (settings) => {
+        backendUrl = settings.backendUrl;
+        inputBackendUrl.value = backendUrl;
+        
+        loadHistory();
+        
+        // Check if selection auditing was requested via context menu
+        if (settings.lastSelectedText) {
+            claimTextInput.value = settings.lastSelectedText;
+            
+            // Remove text from storage so it doesn't prefill next time
+            chrome.storage.local.remove('lastSelectedText');
+            
+            // Automatically submit analysis
+            analyzeForm.dispatchEvent(new Event('submit'));
+        }
+    });
 });

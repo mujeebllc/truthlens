@@ -6,6 +6,28 @@ logger = logging.getLogger(__name__)
 # Cache pipelines to avoid loading them repeatedly
 _translation_pipelines = {}
 
+def preload_translation_models():
+    """
+    Preloads translation models for supported languages into memory at startup
+    if environment variable PRELOAD_TRANSLATION_MODELS is set to 'true'.
+    """
+    import os
+    if os.getenv("PRELOAD_TRANSLATION_MODELS", "false").lower() != "true":
+        logger.info("Translation models preloading is disabled (PRELOAD_TRANSLATION_MODELS != true).")
+        return
+        
+    global _translation_pipelines
+    supported_langs = {"es", "fr", "ur", "ar"}
+    try:
+        from transformers import pipeline
+        for lang in supported_langs:
+            model_name = f"Helsinki-NLP/opus-mt-{lang}-en"
+            if model_name not in _translation_pipelines:
+                logger.info(f"Preloading translation pipeline for: {model_name}")
+                _translation_pipelines[model_name] = pipeline("translation", model=model_name)
+    except Exception as e:
+        logger.warning(f"Failed to preload translation models: {e}")
+
 def detect_language(text: str) -> str:
     """Detect language of the input text, falling back to 'en' on failure."""
     if not text or not text.strip():
