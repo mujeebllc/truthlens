@@ -398,6 +398,28 @@ textarea:focus, input[type="url"]:focus {
     border: 1px solid #bae6fd;
 }
 
+.badge-api {
+    transition: all 0.2s ease;
+}
+
+.badge-api-active {
+    background-color: #ecfdf5;
+    color: #047857;
+    border: 1px solid #a7f3d0;
+}
+
+.badge-api-no-key {
+    background-color: #fff7ed;
+    color: #c2410c;
+    border: 1px solid #ffedd5;
+}
+
+.badge-api-failed {
+    background-color: #fef2f2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+}
+
 .assessment-container {
     display: grid;
     grid-template-columns: 160px 1fr;
